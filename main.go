@@ -110,33 +110,31 @@ func downloadFile(url string, wg *sync.WaitGroup) {
 	defer downloadedFile.Close()
 }
 
-//func downloadFile(url string, wg *sync.WaitGroup) {
-//	defer wg.Done()
-//
-//	fmt.Println("Descargando ", url)
-//
-//	file, err := os.Create("downloads/" + url)
-//	if err != nil {
-//		log.Println(err)
-//		return
-//	}
-//	defer file.Close()
-//
-//	res, err := http.Get(url)
-//	if err != nil {
-//		log.Println(err)
-//		return
-//	}
-//	defer res.Body.Close()
-//
-//	if res.StatusCode != http.StatusOK {
-//		log.Println("Error: ", res.Status)
-//		return
-//	}
-//
-//	_, err = io.Copy(file, res.Body)
-//	if err != nil {
-//		log.Println(err)
-//		return
-//	}
-//}
+func SearchURLsInFile(fileName string) ([]string, error) {
+	file, err := os.Open(fileName)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	rxRelaxed := xurls.Relaxed()
+	var urls []string
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		list := rxRelaxed.FindAllString(line, -1)
+
+		for _, url := range list {
+			if slices.Contains(urls, url) == false {
+				urls = append(urls, url)
+			}
+		}
+	}
+
+	if err = scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return urls, nil
+}
