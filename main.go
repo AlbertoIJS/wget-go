@@ -15,49 +15,14 @@ import (
 )
 
 func main() {
-	file, err := os.Open("index.html")
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	rxRelaxed := xurls.Relaxed()
 	var wg sync.WaitGroup
-	var urls []string
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		list := rxRelaxed.FindAllString(line, -1)
-
-		for _, url := range list {
-			if slices.Contains(urls, url) == false {
-				urls = append(urls, url)
-			}
-		}
-	}
-
-	if err = scanner.Err(); err != nil {
-		log.Println(err)
-		return
-	}
-
-	if len(urls) > 0 {
-		for _, url := range urls {
-			wg.Add(1)
-			go downloadFile(url, &wg)
-		}
-	} else {
-		log.Fatal("No se encontraron URLs")
-	}
+	downloadFile("https://www.google.com", &wg)
 
 	wg.Wait()
 }
 
 func downloadFile(url string, wg *sync.WaitGroup) {
-	defer wg.Done()
-
 	fmt.Println("Descargando: ", url)
 
 	res, err := http.Get(url)
@@ -101,13 +66,22 @@ func downloadFile(url string, wg *sync.WaitGroup) {
 		return
 	}
 
-	// Open the downloaded file and scan it for URLs
-	downloadedFile, err := os.Open(fileName)
+	var waitGroup sync.WaitGroup
+
+	urls, err := SearchURLsInFile(fileName)
+	fmt.Println("URLs encontradas en "+url+":", urls)
+
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	defer downloadedFile.Close()
+
+	waitGroup.Add(len(urls))
+	for _, url = range urls {
+		go downloadFile(url, &waitGroup)
+	}
+
+	waitGroup.Wait()
 }
 
 func SearchURLsInFile(fileName string) ([]string, error) {
@@ -118,7 +92,7 @@ func SearchURLsInFile(fileName string) ([]string, error) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	rxRelaxed := xurls.Relaxed()
+	rxRelaxed := xurls.Strict()
 	var urls []string
 
 	for scanner.Scan() {
