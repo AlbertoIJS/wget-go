@@ -9,6 +9,7 @@ import (
 	"mvdan.cc/xurls/v2"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -16,9 +17,8 @@ import (
 
 func main() {
 	var wg sync.WaitGroup
-
-	downloadFile("https://www.google.com", &wg)
-
+	url := "https://doodleipsum.com/"
+	downloadFile(url, &wg)
 	wg.Wait()
 }
 
@@ -33,7 +33,8 @@ func downloadFile(url string, wg *sync.WaitGroup) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		log.Println("Error: ", res.Status)
+		log.Println("Error: ", url, res.Status)
+		wg.Done()
 		return
 	}
 
@@ -52,7 +53,16 @@ func downloadFile(url string, wg *sync.WaitGroup) {
 		newUrl = strings.Replace(url, "https://", "", -1)
 	}
 
-	fileName := "downloads/" + newUrl + ext[0]
+	var fileName string
+	name := strings.ReplaceAll(newUrl, "/", "_")
+	if filepath.Ext(name) == "" && len(ext) > 0 {
+		fileName = "downloads/" + name
+	} else if len(ext) > 0 {
+		fileName = "downloads/" + name + ext[0]
+	} else {
+		fileName = "downloads/" + name
+	}
+
 	file, err := os.Create(fileName)
 	if err != nil {
 		log.Println(err)
@@ -82,6 +92,7 @@ func downloadFile(url string, wg *sync.WaitGroup) {
 	}
 
 	waitGroup.Wait()
+	wg.Done()
 }
 
 func SearchURLsInFile(fileName string) ([]string, error) {
@@ -92,7 +103,10 @@ func SearchURLsInFile(fileName string) ([]string, error) {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
 	rxRelaxed := xurls.Strict()
+
 	var urls []string
 
 	for scanner.Scan() {
